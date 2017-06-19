@@ -9,12 +9,12 @@ sudo: false
 
 addons:
   apt:
-    sources:
-      - sourceline: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu trusty stable'
-        key_url: 'https://download.docker.com/linux/ubuntu/gpg'
     packages:
-    - docker-ce
     - python-pip
+
+before_install:
+  - sudo apt-get update
+  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-engine
 
 install:
   - pip install docker-compose
