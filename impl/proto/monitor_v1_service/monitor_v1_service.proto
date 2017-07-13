@@ -12,21 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(ismail): detailed comment
+syntax = "proto3";
+
+// Monitor Service
+//
+// The Key Transparency monitor server service consists of APIs to fetch
+// monitor results queried using the mutations API.
 package monitor.v1.service;
 
 import "github.com/google/keytransparency/core/proto/keytransparency_v1_types/keytransparency_v1_types.proto";
 import "google/api/annotations.proto";
 
+// The Monitor Service API allows clients to query the monitors observed and
+// validated signed map roots.
+//
+// - Signed Map Roots can be collected using the GetSignedMapRoot APIs.
+// - Monitor resources are named:
+//   /v1/map/roots/* /v1/map/roots:latest and v1/map/roots:stream.
+//
 service MonitorService {
-  rpc GetSignedMapRoot(keytransparency.v1.types.GetMontiringRequest)
+  // GetSignedMapRoot returns the latest valid signed map root the monitor
+  // observed.
+  //
+  // Returns the signed map root for the latest epoch the monitor observed. If
+  // the monitor could not reconstruct the map root given the set of mutations
+  // from the previous to the current epoch it won't sign the map root.
+  rpc GetSignedMapRoot(keytransparency.v1.types.GetMonitoringRequest)
     returns (keytransparency.v1.types.GetMonitoringResponse) {
-    option (google.api.http) = { get: "/v1/monitor/smr:latest" };
+    option (google.api.http) = { get: "/v1/map/roots:latest" };
+  }
+  // TODO(ismail): comments
+  rpc GetSignedMapRootByRevision(keytransparency.v1.types.GetMonitoringRequest)
+    returns(keytransparency.v1.types.GetMonitoringResponse) {
+    option (google.api.http) = { get: "/v1/map/roots/{start}" };
   }
 
-  rpc GetSignedMapRootStream(keytransparency.v1.types.GetMontiringRequest)
-    returns (stream keytransparency.v1.types.GetMutationsResponse) {
-    option (google.api.http) = { get: "/v1/monitor/smr:stream" };
+  rpc GetSignedMapRootStream(keytransparency.v1.types.GetMonitoringRequest)
+    returns (stream keytransparency.v1.types.GetMonitoringResponse) {
+    option (google.api.http) = { get: "/v1/map/roots:stream" };
   }
 }
 

@@ -15,37 +15,32 @@
 package main
 
 import (
-	"database/sql"
-	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
-	"github.com/google/keytransparency/core/mapserver"
+	mpb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
 
-	ctxn "github.com/google/keytransparency/core/transaction"
-	"github.com/google/keytransparency/impl/sql/sequenced"
-	"github.com/google/keytransparency/impl/sql/sqlhist"
-	"github.com/google/trillian"
+	"time"
 
 	"github.com/golang/glog"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/google/keytransparency/impl/monitor"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-	"time"
 )
 
 var (
 	addr     = flag.String("addr", ":8099", "The ip:port combination to listen on")
 	vrfPath  = flag.String("vrf", "genfiles/vrf-pubkey.pem", "Path to VRF public key")
-	keyFile  = flag.String("key", "testdata/server.key", "TLS private key file")
-	certFile = flag.String("cert", "testdata/server.pem", "TLS cert file")
+	logPubKey= flag.String("log-key", "genfiles/trillian-log.pem", "Path to the trillian log's public key")
+	keyFile  = flag.String("key", "genfiles/server.key", "TLS private key file")
+	certFile = flag.String("cert", "genfiles/server.pem", "TLS cert file")
 
 	pollPeriod = flag.Duration("poll-period", time.Second*5, "Maximum time between polling the key-server. Expected to be equal to the min-period of paramerter of the keyserver.")
 
@@ -57,23 +52,18 @@ var (
 )
 
 func grpcGatewayMux(addr string) (*runtime.ServeMux, error) {
-	// TODO(ismail): create and register service end-points here:
-	//ctx := context.Background()
-	//creds, err := credentials.NewClientTLSFromFile(*certFile, "")
-	//if err != nil {
-	//	return nil, err
-	//}
-	//dopts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
-	//gwmux := runtime.NewServeMux()
-	//if err := ktpb.RegisterKeyTransparencyServiceHandlerFromEndpoint(ctx, gwmux, addr, dopts); err != nil {
-	//	return nil, err
-	//}
-	//if err := mpb.RegisterMutationServiceHandlerFromEndpoint(ctx, gwmux, addr, dopts); err != nil {
-	//	return nil, err
-	//}
+	ctx := context.Background()
+	creds, err := credentials.NewClientTLSFromFile(*certFile, "")
+	if err != nil {
+		return nil, err
+	}
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
+	gwmux := runtime.NewServeMux()
+	if err := mpb.RegisterMonitorServiceHandlerFromEndpoint(ctx, gwmux, addr, dopts); err != nil {
+		return nil, err
+	}
 
-	//return gwmux, nil
-	return nil, errors.New("TODO: not implemented yet")
+	return gwmux, nil
 }
 
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
@@ -88,18 +78,6 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 			otherHandler.ServeHTTP(w, r)
 		}
 	})
-}
-
-func newReadonlyMapServer(ctx context.Context, mapID int64, sqldb *sql.DB, factory ctxn.Factory) (trillian.TrillianMapClient, error) {
-	tree, err := sqlhist.New(ctx, mapID, factory)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create SQL history: %v", err)
-	}
-	sths, err := sequenced.New(sqldb, mapID)
-	if err != nil {
-		return nil, fmt.Errorf("sequenced.New(%v): %v", mapID, err)
-	}
-	return mapserver.NewReadonly(mapID, tree, factory, sths), nil
 }
 
 func main() {
@@ -120,8 +98,8 @@ func main() {
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
-	// TODO(ismail): register service:
-	// ktpb.RegisterKeyTransparencyServiceServer(grpcServer, svr)
+	srv := monitor.New()
+	mpb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
 	grpc_prometheus.Register(grpcServer)
 	grpc_prometheus.EnableHandlingTimeHistogram()

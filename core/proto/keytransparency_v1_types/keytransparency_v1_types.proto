@@ -263,7 +263,7 @@ message GetMonitoringResponse {
   // smr contains the map root for the sparse Merkle Tree signed with the
   // monitor's key on success. If the checks were not successful the
   // smr will be empty. The epochs are encoded into the smr map_revision.
-  trillian.SignedMapRoot smr = 2;
+  trillian.SignedMapRoot smr = 1;
   // TODO(ismail): add fields which checks have failed and succeeded to give
   // back more information to the caller.
 }
