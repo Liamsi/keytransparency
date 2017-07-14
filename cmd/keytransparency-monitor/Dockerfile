@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y libtool libltdl-dev
 RUN go get -tags="mysql" ./cmd/keytransparency-monitor
 
 ENTRYPOINT /go/bin/keytransparency-monitor \
-	--addr="$HOST:$RPC_PORT" --poll-period="$POLL_PERIOD" \
+	--addr="$HOST:$RPC_PORT" --kt-url="$KT_URL" --poll-period="$POLL_PERIOD" \
 	--vrf="$VRF_PUB" \
 	--key="$TLS_KEY_PATH" --cert="$TLS_CRT_PATH" \
 	--log-id="$LOG_ID" --log-key="$LOG_PUB_KEY" \

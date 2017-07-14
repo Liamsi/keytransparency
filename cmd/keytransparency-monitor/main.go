@@ -17,12 +17,13 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"strings"
-
-	mpb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
-
 	"time"
+
+	mopb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
+	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
 
 	"github.com/golang/glog"
 	"github.com/google/keytransparency/impl/monitor"
@@ -36,14 +37,15 @@ import (
 )
 
 var (
-	addr     = flag.String("addr", ":8099", "The ip:port combination to listen on")
-	vrfPath  = flag.String("vrf", "genfiles/vrf-pubkey.pem", "Path to VRF public key")
-	logPubKey= flag.String("log-key", "genfiles/trillian-log.pem", "Path to the trillian log's public key")
-	keyFile  = flag.String("key", "genfiles/server.key", "TLS private key file")
-	certFile = flag.String("cert", "genfiles/server.pem", "TLS cert file")
+	addr      = flag.String("addr", ":8099", "The ip:port combination to listen on")
+	vrfPath   = flag.String("vrf", "genfiles/vrf-pubkey.pem", "Path to VRF public key")
+	logPubKey = flag.String("log-key", "genfiles/trillian-log.pem", "Path to the trillian log's public key")
+	keyFile   = flag.String("key", "genfiles/server.key", "TLS private key file")
+	certFile  = flag.String("cert", "genfiles/server.pem", "TLS cert file")
 
 	pollPeriod = flag.Duration("poll-period", time.Second*5, "Maximum time between polling the key-server. Expected to be equal to the min-period of paramerter of the keyserver.")
-
+	ktURL      = flag.String("kt-url", "localhost:8080", "URL of key-server.")
+	ktPEM      = flag.String("kt-key", "genfiles/server.crt", "Path to kt-server's public key")
 	// TODO(ismail): are the IDs actually needed for verification operations?
 	mapID = flag.Int64("map-id", 0, "Trillian map ID")
 	logID = flag.Int64("log-id", 0, "Trillian Log ID")
@@ -59,7 +61,7 @@ func grpcGatewayMux(addr string) (*runtime.ServeMux, error) {
 	}
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
 	gwmux := runtime.NewServeMux()
-	if err := mpb.RegisterMonitorServiceHandlerFromEndpoint(ctx, gwmux, addr, dopts); err != nil {
+	if err := mopb.RegisterMonitorServiceHandlerFromEndpoint(ctx, gwmux, addr, dopts); err != nil {
 		return nil, err
 	}
 
@@ -83,8 +85,6 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 func main() {
 	flag.Parse()
 
-	// Open Resources.
-
 	creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
 	if err != nil {
 		glog.Exitf("Failed to load server credentials %v", err)
@@ -98,8 +98,17 @@ func main() {
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
-	srv := monitor.New()
-	mpb.RegisterMonitorServiceServer(grpcServer, srv)
+
+	// Connect to the kt-server's mutation API:
+	cc, err := dial(*ktURL, *ktPEM)
+	if err != nil {
+		glog.Fatalf("Error Dialing %v: %v", ktURL, err)
+	}
+	mcc := mupb.NewMutationServiceClient(cc)
+
+	srv := monitor.New(mcc, *mapID, *pollPeriod)
+
+	mopb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
 	grpc_prometheus.Register(grpcServer)
 	grpc_prometheus.EnableHandlingTimeHistogram()
@@ -122,10 +131,45 @@ func main() {
 			log.Fatalf("ListenAndServeTLS(%v): %v", *metricsAddr, err)
 		}
 	}()
+
+	go func() {
+		if err := srv.StartPolling(); err != nil {
+			glog.Fatalf("Could not start polling mutations.")
+		}
+	}()
+
 	// Serve HTTP2 server over TLS.
 	glog.Infof("Listening on %v", *addr)
 	if err := http.ListenAndServeTLS(*addr, *certFile, *keyFile,
 		grpcHandlerFunc(grpcServer, mux)); err != nil {
 		glog.Errorf("ListenAndServeTLS: %v", err)
 	}
+}
+
+func dial(ktURL, caFile string) (*grpc.ClientConn, error) {
+	var opts []grpc.DialOption
+	if true {
+		host, _, err := net.SplitHostPort(ktURL)
+		if err != nil {
+			return nil, err
+		}
+		var creds credentials.TransportCredentials
+		if caFile != "" {
+			var err error
+			creds, err = credentials.NewClientTLSFromFile(caFile, host)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// Use the local set of root certs.
+			creds = credentials.NewClientTLSFromCert(nil, host)
+		}
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	}
+
+	cc, err := grpc.Dial(ktURL, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return cc, nil
 }

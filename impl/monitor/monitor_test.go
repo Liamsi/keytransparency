@@ -1,14 +1,14 @@
 package monitor
 
 import (
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"testing"
-	"google.golang.org/grpc"
-	"golang.org/x/net/context"
 )
 
 func TestGetSignedMapRoot(t *testing.T) {
-	srv := New()
+	srv := server{}
 	_, err := srv.GetSignedMapRoot(context.TODO(), nil)
 	if got, want := grpc.Code(err), codes.Unimplemented; got != want {
 		t.Errorf("GetSignedMapRootStream(_, _): %v, want %v", got, want)
@@ -16,10 +16,9 @@ func TestGetSignedMapRoot(t *testing.T) {
 }
 
 func TestGetSignedMapRootStream(t *testing.T) {
-	srv := New()
+	srv := server{}
 	err := srv.GetSignedMapRootStream(nil, nil)
 	if got, want := grpc.Code(err), codes.Unimplemented; got != want {
 		t.Errorf("GetSignedMapRootStream(_, _): %v, want %v", got, want)
 	}
 }
-
