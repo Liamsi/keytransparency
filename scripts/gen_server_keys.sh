@@ -29,8 +29,8 @@ done
 if [[ -n "${COMMONNAME}" ]]; then
     SUBJECT="${SUBJECT}/CN=${COMMONNAME}"
 fi
-
-SANEXT="[SAN]\nbasicConstraints=CA:TRUE\nsubjectAltName=DNS:localhost"
+# TODO(ismail): make nsubjectAltName a parameter (with default localhost):
+SANEXT="[SAN]\nbasicConstraints=CA:TRUE\nsubjectAltName=DNS:kt-server"
 if [[ -n "${ADDRESS}" ]]; then
     SANEXT="${SANEXT},IP.2:${ADDRESS}"
 fi
@@ -44,11 +44,13 @@ openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
 openssl rsa -passin pass:x -in server.pass.key -out server.key
 chmod 600 server.key
 rm server.pass.key
+# This does not work on a Mac (unless /System/Library/OpenSSL/openssl.cnf
+# is linked to /etc/ssl/openssl.cnf):
 openssl req -new \
 	-key server.key \
 	-subj "${SUBJECT}" \
 	-reqexts SAN \
-	-config <(cat /etc/ssl/openssl.cnf \
+	-config <(cat /System/Library/OpenSSL/openssl.cnf \
 		      <(printf "${SANEXT}")) \
 	-out server.csr
 openssl x509 -req -days 365 -in server.csr -signkey server.key \

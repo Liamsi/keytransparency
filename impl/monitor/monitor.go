@@ -96,7 +96,7 @@ func (s *server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMon
 }
 
 func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]*ktpb.Mutation, error) {
-	req := &ktpb.GetMutationsRequest{PageSize: pageSize}
+	req := &ktpb.GetMutationsRequest{PageSize: pageSize, Epoch: s.nextRevToQuery()}
 	resp, err := s.client.GetMutations(ctx, req, opts...)
 	if err != nil {
 		return nil, err
@@ -151,9 +151,23 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 }
 
 func (s *server) lastSeenSMR() *trillian.SignedMapRoot {
-	return s.seenSMRs[len(s.seenSMRs)-1]
+	if len(s.seenSMRs) > 0 {
+		return s.seenSMRs[len(s.seenSMRs)-1]
+	}
+	return nil
 }
 
 func (s *server) lastSMR() *trillian.SignedMapRoot {
-	return s.reconstructedSMRs[len(s.reconstructedSMRs)-1]
+	if len(s.reconstructedSMRs) > 0 {
+		return s.reconstructedSMRs[len(s.reconstructedSMRs)-1]
+	}
+	return nil
+}
+
+func (s *server) nextRevToQuery() int64 {
+	smr := s.lastSeenSMR()
+	if smr == nil {
+		return 1
+	}
+	return smr.GetMapRevision()+1
 }

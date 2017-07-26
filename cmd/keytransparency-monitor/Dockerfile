@@ -8,7 +8,7 @@ ENV VRF_PUB=keytransparency/genfiles/vrf-key.pem \
     TLS_KEY_PATH=genfiles/server.key \
     TLS_CRT_PATH=genfiles/server.crt
 
-ENV KT_URL=localhost:8080
+ENV KT_URL=kt-server:8080
 
 ENV MAP_ID=0 \
     MAP_URL=""
