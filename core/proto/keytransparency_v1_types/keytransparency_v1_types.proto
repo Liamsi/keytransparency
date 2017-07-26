@@ -264,6 +264,20 @@ message GetMonitoringResponse {
   // monitor's key on success. If the checks were not successful the
   // smr will be empty. The epochs are encoded into the smr map_revision.
   trillian.SignedMapRoot smr = 1;
-  // TODO(ismail): add fields which checks have failed and succeeded to give
-  // back more information to the caller.
+
+  //
+  // The following fields provide more information about each failure in this
+  // response, if any.
+  //
+
+  // isValid signals if all verification steps for the requested epoch passed
+  // or not.
+  bool isValid = 2;
+  // invalidRootSig contains the signed map root received by the
+  // key-transparency server, if and only if the key-server's signature was
+  // invalid.
+  trillian.SignedMapRoot invalidRootSig = 3;
+  // TODO(ismail): add field for the following cases:
+  // - Invalid mutation from epoch e to e+1
+  // - Set of mutations does not produce new map root
 }

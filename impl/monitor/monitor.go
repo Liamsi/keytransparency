@@ -88,10 +88,12 @@ func (s *server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringReq
 
 // GetSignedMapRootStream is a streaming API similar to GetSignedMapRoot.
 func (s *server) GetSignedMapRootStream(in *ktpb.GetMonitoringRequest, stream mspb.MonitorService_GetSignedMapRootStreamServer) error {
+	// TODO(ismail): implement stream API
 	return grpc.Errorf(codes.Unimplemented, "GetSignedMapRootStream is unimplemented")
 }
 
 func (s *server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
+	// TODO(ismail): implement by revision API
 	return nil, grpc.Errorf(codes.Unimplemented, "GetSignedMapRoot is unimplemented")
 }
 
@@ -108,21 +110,14 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		got.GetMapRevision() == want.GetMapRevision() {
 		// We already processed this SMR. Do not update seen SMRs. Do not scroll
 		// pages for further mutations. Return empty mutations list.
-		glog.Info("Already processed this SMR. Continuing.")
+		glog.Infof("Already processed this SMR with revision %v. Continuing.", got.GetMapRevision())
 		return nil, nil
 	}
 
 	mutations := make([]*ktpb.Mutation, pageSize*2)
 	mutations = append(mutations, resp.GetMutations()...)
-	// Query all mutations in the current epoch
-	for resp.GetNextPageToken() != "" {
-		req := &ktpb.GetMutationsRequest{PageSize: pageSize}
-		resp, err = s.client.GetMutations(ctx, req, opts...)
-		if err != nil {
-			return nil, err
-		}
-		mutations = append(mutations, resp.GetMutations()...)
-	}
+	s.pageMutations(ctx, resp, mutations, opts)
+
 	// update seen SMRs:
 	s.seenSMRs = append(s.seenSMRs, resp.GetSmr())
 
@@ -150,6 +145,24 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	return mutations, nil
 }
 
+// pageMutations iterates/pages through all mutations in the case there were
+// more then maximum pageSize mutations in between epochs.
+// It will modify the passed GetMutationsResponse resp and the passed list of
+// mutations ms.
+func (s *server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsResponse,
+	ms []*ktpb.Mutation, opts ...grpc.CallOption) error {
+	// Query all mutations in the current epoch
+	for resp.GetNextPageToken() != "" {
+		req := &ktpb.GetMutationsRequest{PageSize: pageSize}
+		resp, err := s.client.GetMutations(ctx, req, opts...)
+		if err != nil {
+			return err
+		}
+		ms = append(ms, resp.GetMutations()...)
+	}
+	return nil
+}
+
 func (s *server) lastSeenSMR() *trillian.SignedMapRoot {
 	if len(s.seenSMRs) > 0 {
 		return s.seenSMRs[len(s.seenSMRs)-1]
@@ -169,5 +182,5 @@ func (s *server) nextRevToQuery() int64 {
 	if smr == nil {
 		return 1
 	}
-	return smr.GetMapRevision()+1
+	return smr.GetMapRevision() + 1
 }

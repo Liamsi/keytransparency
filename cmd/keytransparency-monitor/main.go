@@ -36,8 +36,6 @@ import (
 
 var (
 	addr      = flag.String("addr", ":8099", "The ip:port combination to listen on")
-	vrfPath   = flag.String("vrf", "genfiles/vrf-pubkey.pem", "Path to VRF public key")
-	logPubKey = flag.String("log-key", "genfiles/trillian-log.pem", "Path to the trillian log's public key")
 	keyFile   = flag.String("key", "genfiles/server.key", "TLS private key file")
 	certFile  = flag.String("cert", "genfiles/server.pem", "TLS cert file")
 
@@ -48,6 +46,7 @@ var (
 	mapID = flag.Int64("map-id", 0, "Trillian map ID")
 	logID = flag.Int64("log-id", 0, "Trillian Log ID")
 
+	// TODO(ismail): expose prometheus metrics: a variable that tracks valid/invalid MHs
 	metricsAddr = flag.String("metrics-addr", ":8081", "The ip:port to publish metrics on")
 )
 
