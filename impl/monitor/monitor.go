@@ -19,6 +19,8 @@
 package monitor
 
 import (
+	"bytes"
+	"errors"
 	"time"
 
 	"github.com/golang/glog"
@@ -35,7 +37,6 @@ import (
 	mspb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
 	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
 
-	"bytes"
 	"github.com/google/keytransparency/core/tree/sparse"
 )
 
@@ -43,6 +44,19 @@ import (
 // keys. Assuming 2 keys per profile (each of size 2048-bit), a page of
 // size 16 will contain about 8KB of data.
 const pageSize = 16
+
+var (
+	// ErrInvalidMutation occurs when verification failed because of an invalid
+	// mutation.
+	ErrInvalidMutation = errors.New("Invalid mutation")
+	// ErrNotMatchingRoot occurs when the reconstructed root differs from the one
+	// we received from the server.
+	ErrNotMatchingRoot = errors.New("Recreated root does not match")
+	// ErrInvalidSignature occurs when the signature on the observed map root is
+	// invalid.
+	ErrInvalidSignature = errors.New("Recreated root does not match")
+)
+
 
 // Server holds internal state for the monitor server.
 type server struct {
@@ -125,28 +139,46 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 
 	// update seen SMRs:
 	s.seenSMRs = append(s.seenSMRs, resp.GetSmr())
+	rh := resp.GetSmr().GetRootHash()
+	switch err := s.verifyMutations(mutations, rh); err {
+	// TODO(ismail): return proper data for failure cases:
+	case ErrInvalidMutation:
+		glog.Errorf("TODO: handle this ErrInvalidMutation properly")
+	case ErrInvalidSignature:
+		glog.Errorf("TODO: handle this ErrInvalidSignature properly (return SMR)")
+	case ErrNotMatchingRoot:
+		glog.Errorf("TODO: handle this ErrNotMatchingRoot properly")
+	case nil:
+		glog.Info("TODO: Successfully verified.")
+	default:
+		glog.Errorf("Unexpected error: %v", err)
+	}
 
+		// TODO(ismail): sign and update reconstructedSMRs
+	// here we just add the kt-server signed SMR:
+	s.reconstructedSMRs = append(s.reconstructedSMRs, resp.GetSmr())
+
+	return mutations, nil
+}
+
+func (s* server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
 	// TODO(ismail):
 	// For each received mutation in epoch e:
 	// Verify that the provided leaf’s inclusion proof goes to epoch e -1.
 	// Verify the mutation’s validity against the previous leaf.
 	// Compute the new leaf and store the intermediate hashes locally.
 	// Compute the new root using local intermediate hashes from epoch e.
-	for _, m := range mutations {
+	for _, m := range ms {
 		idx := m.GetProof().GetLeaf().GetIndex()
 		nbrs := m.GetProof().GetInclusion()
 		if err := s.tree.VerifyProof(nbrs, idx, m.GetProof().GetLeaf().GetLeafValue(),
-			sparse.FromBytes(resp.GetSmr().GetRootHash())); err != nil {
+			sparse.FromBytes(expectedRoot)); err != nil {
 			glog.Errorf("VerifyProof(): %v", err)
 			// TODO return nil, err
 		}
 	}
 
-	// TODO(ismail): sign and update reconstructedSMRs
-	// here we just add the kt-server signed SMR:
-	s.reconstructedSMRs = append(s.reconstructedSMRs, resp.GetSmr())
-
-	return mutations, nil
+	return nil
 }
 
 // pageMutations iterates/pages through all mutations in the case there were

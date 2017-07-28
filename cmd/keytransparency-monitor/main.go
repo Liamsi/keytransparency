@@ -105,12 +105,13 @@ func main() {
 	}
 	mcc := mupb.NewMutationServiceClient(grpcc)
 
+	// Read signing key:
 	key, err := keys.NewFromPrivatePEMFile(*signingKey, *signingKeyPassword)
 	if err != nil {
-		return nil, err
+		glog.Fatalf("Could not create signer from %v: %v", *signingKey, err)
 	}
 
-	srv := monitor.New(mcc, crypto.NewSHA256Signer(key), *mapID, *pollPeriod)
+	srv := monitor.New(mcc, *crypto.NewSHA256Signer(key), *mapID, *pollPeriod)
 
 	mopb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
