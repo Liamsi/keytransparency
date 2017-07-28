@@ -259,23 +259,26 @@ message GetMonitoringRequest {
   int64 start = 1;
 }
 
-// InvalidMutationProof includes all information to reproduce that there was an
+// InvalidMutation includes all information to reproduce that there was an
 // invalid mutation from epoch e to e+1.
-message InvalidMutationProof {
-  // old_leaf_proof is the inclusion proof to the leaf at epoch e.
-  trillian.MapLeafInclusion old_leaf_proof = 1;
-  // new_leaf_proof is the inclusion proof to the leaf at epoch e+1.
-  trillian.MapLeafInclusion new_leaf_proof = 2;
+message InvalidMutation {
+  // old_leaf is the inclusion proof to the leaf at epoch e.
+  trillian.MapLeafInclusion old_leaf = 1;
+  // new_leaf is the inclusion proof to the leaf at epoch e+1.
+  trillian.MapLeafInclusion new_leaf = 2;
 }
 
 // NotMatchingMapRootProof contains all data necessary to reproduce that set of
 // mutations does not produce new expected map root.
 message NotMatchingMapRootProof {
-  // root_hash contains the map root hash the monitor observed.
-  bytes root_hash = 1;
-  // leaf_proofs is a list of inclusion proofs for changed leafs (from epoch e
-  // to epoch e+1). Hashing these produces a different hash than root_hash.
-  repeated trillian.MapLeafInclusion leaf_proofs = 2;
+  // map_root contains the map root hash the monitor observed.
+  trillian.SignedMapRoot map_root = 1;
+  // old_leafs is a list of inclusion proofs for the leafs in epoch e.
+  repeated trillian.MapLeafInclusion old_leafs = 2;
+  // new_leafs is a list of inclusion proofs for changed leafs (from epoch e
+  // to epoch e+1). Hashing these produces a different hash than root hash in
+  // above's map_root.
+  repeated trillian.MapLeafInclusion new_leafs = 3;
 }
 
 message GetMonitoringResponse {
@@ -298,7 +301,7 @@ message GetMonitoringResponse {
   trillian.SignedMapRoot invalidRootSigProof = 3;
   // invalidMutation contains data to reproduce that there was an invalid
   // mutation from epoch e to epoch e+1
-  InvalidMutationProof invalidMutation = 4;
+  InvalidMutation invalidMutation = 4;
   // NotMatchingMapRoot contains all data to reproduce that the set of mutations
   // does not produce observed new map root.
   NotMatchingMapRootProof notMatchingMapRoot = 5;
