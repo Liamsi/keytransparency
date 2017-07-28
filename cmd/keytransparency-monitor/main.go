@@ -42,9 +42,8 @@ var (
 	pollPeriod = flag.Duration("poll-period", time.Second*5, "Maximum time between polling the key-server. Ideally, this is equal to the min-period of paramerter of the keyserver.")
 	ktURL      = flag.String("kt-url", "localhost:8080", "URL of key-server.")
 	ktPEM      = flag.String("kt-key", "genfiles/server.crt", "Path to kt-server's public key")
-	// TODO(ismail): are the IDs actually needed for verification operations?
+	// TODO(ismail): remove mapID
 	mapID = flag.Int64("map-id", 0, "Trillian map ID")
-	logID = flag.Int64("log-id", 0, "Trillian Log ID")
 
 	// TODO(ismail): expose prometheus metrics: a variable that tracks valid/invalid MHs
 	metricsAddr = flag.String("metrics-addr", ":8081", "The ip:port to publish metrics on")

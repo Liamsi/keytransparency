@@ -10,8 +10,8 @@ import (
 func TestGetSignedMapRoot(t *testing.T) {
 	srv := server{}
 	_, err := srv.GetSignedMapRoot(context.TODO(), nil)
-	if got, want := grpc.Code(err), codes.Unimplemented; got != want {
-		t.Errorf("GetSignedMapRootStream(_, _): %v, want %v", got, want)
+	if got, want := grpc.Code(err), codes.OK; got != want {
+		t.Errorf("GetSignedMapRoot(_, _): %v, want %v", got, want)
 	}
 }
 

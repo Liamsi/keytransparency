@@ -116,7 +116,7 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 
 	mutations := make([]*ktpb.Mutation, pageSize*2)
 	mutations = append(mutations, resp.GetMutations()...)
-	s.pageMutations(ctx, resp, mutations, opts)
+	s.pageMutations(ctx, resp, mutations, opts...)
 
 	// update seen SMRs:
 	s.seenSMRs = append(s.seenSMRs, resp.GetSmr())
