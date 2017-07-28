@@ -32,12 +32,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
+	"github.com/google/trillian/crypto/keys"
+	"github.com/google/trillian/crypto"
 )
 
 var (
 	addr      = flag.String("addr", ":8099", "The ip:port combination to listen on")
 	keyFile   = flag.String("key", "genfiles/server.key", "TLS private key file")
 	certFile  = flag.String("cert", "genfiles/server.pem", "TLS cert file")
+
+	signingKey         = flag.String("sign-key", "genfiles/p256-key.pem", "Path to private key PEM for SMH signing")
+	signingKeyPassword = flag.String("password", "towel", "Password of the private key PEM file for SMH signing")
 
 	pollPeriod = flag.Duration("poll-period", time.Second*5, "Maximum time between polling the key-server. Ideally, this is equal to the min-period of paramerter of the keyserver.")
 	ktURL      = flag.String("kt-url", "localhost:8080", "URL of key-server.")
@@ -100,7 +105,12 @@ func main() {
 	}
 	mcc := mupb.NewMutationServiceClient(grpcc)
 
-	srv := monitor.New(mcc, *mapID, *pollPeriod)
+	key, err := keys.NewFromPrivatePEMFile(*signingKey, *signingKeyPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	srv := monitor.New(mcc, crypto.NewSHA256Signer(key), *mapID, *pollPeriod)
 
 	mopb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)

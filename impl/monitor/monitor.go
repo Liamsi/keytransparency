@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/google/trillian"
+	"github.com/google/trillian/crypto"
 
 	ktpb "github.com/google/keytransparency/core/proto/keytransparency_v1_types"
 	tv "github.com/google/keytransparency/core/tree/sparse/verifier"
@@ -48,7 +49,8 @@ type server struct {
 	client     mupb.MutationServiceClient
 	pollPeriod time.Duration
 
-	tree *tv.Verifier
+	tree   *tv.Verifier
+	signer crypto.Signer
 	// TODO(ismail): only store the 'result' of each GetMutations request (as it
 	// contains all necessary date to make sure we don't process SMRs multiple
 	// times)
@@ -57,12 +59,13 @@ type server struct {
 }
 
 // New creates a new instance of the monitor server.
-func New(cli mupb.MutationServiceClient, mapID int64, poll time.Duration) *server {
+func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll time.Duration) *server {
 	return &server{
 		client:     cli,
 		pollPeriod: poll,
 		// TODO TestMapHasher (maphasher.Default) does not implement sparse.TreeHasher:
 		tree:              tv.New(mapID, sparse.CONIKSHasher),
+		signer:            signer,
 		seenSMRs:          make([]*trillian.SignedMapRoot, 256),
 		reconstructedSMRs: make([]*trillian.SignedMapRoot, 256),
 	}
