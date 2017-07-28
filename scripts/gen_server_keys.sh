@@ -18,11 +18,12 @@ COMMONNAME=""
 ADDRESS=""
 SUBJECT="/C=US"
 
-while getopts d:a: option; do
+while getopts d:a:s: option; do
     case "${option}" in
 	d) COMMONNAME=${OPTARG};;
 	a) ADDRESS=${OPTARG};;
-	*) echo "usage: ./generate.sh -d <domain> -a <ip_address>"; exit 1;;
+	s) SAN_DNS=${OPTARG};;
+	*) echo "usage: ./generate.sh -d <domain> -a <ip_address> -s <san_extension_DNS>"; exit 1;;
     esac
 done
 
@@ -30,7 +31,7 @@ if [[ -n "${COMMONNAME}" ]]; then
     SUBJECT="${SUBJECT}/CN=${COMMONNAME}"
 fi
 # TODO(ismail): make nsubjectAltName a parameter (with default localhost):
-SANEXT="[SAN]\nbasicConstraints=CA:TRUE\nsubjectAltName=DNS:kt-server"
+SANEXT="[SAN]\nbasicConstraints=CA:TRUE\nsubjectAltName=DNS:${SAN_DNS}"
 if [[ -n "${ADDRESS}" ]]; then
     SANEXT="${SANEXT},IP.2:${ADDRESS}"
 fi
@@ -44,13 +45,13 @@ openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
 openssl rsa -passin pass:x -in server.pass.key -out server.key
 chmod 600 server.key
 rm server.pass.key
-# This does not work on a Mac (unless /System/Library/OpenSSL/openssl.cnf
-# is linked to /etc/ssl/openssl.cnf):
+# The following command does not work on a Mac
+# (unless /System/Library/OpenSSL/openssl.cnf is linked to /etc/ssl/openssl.cnf):
 openssl req -new \
 	-key server.key \
 	-subj "${SUBJECT}" \
 	-reqexts SAN \
-	-config <(cat /System/Library/OpenSSL/openssl.cnf \
+	-config <(cat /etc/ssl/openssl.cnf \
 		      <(printf "${SANEXT}")) \
 	-out server.csr
 openssl x509 -req -days 365 -in server.csr -signkey server.key \

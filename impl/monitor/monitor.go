@@ -139,7 +139,6 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 
 	// TODO(ismail): sign and update reconstructedSMRs
 	// here we just add the kt-server signed SMR:
-	glog.Errorf("Got reponse: %v", resp.GetSmr())
 	s.reconstructedSMRs = append(s.reconstructedSMRs, resp.GetSmr())
 
 	return mutations, nil
