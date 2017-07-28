@@ -259,6 +259,25 @@ message GetMonitoringRequest {
   int64 start = 1;
 }
 
+// InvalidMutationProof includes all information to reproduce that there was an
+// invalid mutation from epoch e to e+1.
+message InvalidMutationProof {
+  // old_leaf_proof is the inclusion proof to the leaf at epoch e.
+  trillian.MapLeafInclusion old_leaf_proof = 1;
+  // new_leaf_proof is the inclusion proof to the leaf at epoch e+1.
+  trillian.MapLeafInclusion new_leaf_proof = 2;
+}
+
+// NotMatchingMapRootProof contains all data necessary to reproduce that set of
+// mutations does not produce new expected map root.
+message NotMatchingMapRootProof {
+  // root_hash contains the map root hash the monitor observed.
+  bytes root_hash = 1;
+  // leaf_proofs is a list of inclusion proofs for changed leafs (from epoch e
+  // to epoch e+1). Hashing these produces a different hash than root_hash.
+  repeated trillian.MapLeafInclusion leaf_proofs = 2;
+}
+
 message GetMonitoringResponse {
   // smr contains the map root for the sparse Merkle Tree signed with the
   // monitor's key on success. If the checks were not successful the
@@ -273,11 +292,14 @@ message GetMonitoringResponse {
   // isValid signals if all verification steps for the requested epoch passed
   // or not.
   bool isValid = 2;
-  // invalidRootSig contains the signed map root received by the
+  // invalidRootSigProof contains the signed map root received by the
   // key-transparency server, if and only if the key-server's signature was
   // invalid.
-  trillian.SignedMapRoot invalidRootSig = 3;
-  // TODO(ismail): add field for the following cases:
-  // - Invalid mutation from epoch e to e+1
-  // - Set of mutations does not produce new map root
+  trillian.SignedMapRoot invalidRootSigProof = 3;
+  // invalidMutation contains data to reproduce that there was an invalid
+  // mutation from epoch e to epoch e+1
+  InvalidMutationProof invalidMutation = 4;
+  // NotMatchingMapRoot contains all data to reproduce that the set of mutations
+  // does not produce observed new map root.
+  NotMatchingMapRootProof notMatchingMapRoot = 5;
 }

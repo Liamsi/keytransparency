@@ -49,7 +49,9 @@ type server struct {
 	pollPeriod time.Duration
 
 	tree *tv.Verifier
-	// TODO(ismail) abstract this into a storage interface and have an in-memory version
+	// TODO(ismail): only store the 'result' of each GetMutations request (as it
+	// contains all necessary date to make sure we don't process SMRs multiple
+	// times)
 	seenSMRs          []*trillian.SignedMapRoot
 	reconstructedSMRs []*trillian.SignedMapRoot
 }
