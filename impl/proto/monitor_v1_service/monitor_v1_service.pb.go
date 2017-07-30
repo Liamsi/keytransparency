@@ -50,7 +50,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type MonitorServiceClient interface {
 	// GetSignedMapRoot returns the latest valid signed map root the monitor
-	// observed. Additionally, the response contains additional data neccessary to
+	// observed. Additionally, the response contains additional data necessary to
 	// reproduce errors on failure.
 	//
 	// Returns the signed map root for the latest epoch the monitor observed. If
@@ -134,7 +134,7 @@ func (x *monitorServiceGetSignedMapRootStreamClient) Recv() (*keytransparency_v1
 
 type MonitorServiceServer interface {
 	// GetSignedMapRoot returns the latest valid signed map root the monitor
-	// observed. Additionally, the response contains additional data neccessary to
+	// observed. Additionally, the response contains additional data necessary to
 	// reproduce errors on failure.
 	//
 	// Returns the signed map root for the latest epoch the monitor observed. If

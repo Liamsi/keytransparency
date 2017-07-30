@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2017 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ var (
 )
 
 // Server holds internal state for the monitor server.
-type server struct {
+type Server struct {
 	client     mupb.MutationServiceClient
 	pollPeriod time.Duration
 
@@ -72,8 +72,8 @@ type server struct {
 }
 
 // New creates a new instance of the monitor server.
-func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll time.Duration) *server {
-	return &server{
+func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll time.Duration) *Server {
+	return &Server{
 		client:     cli,
 		pollPeriod: poll,
 		// TODO TestMapHasher (maphasher.Default) does not implement sparse.TreeHasher:
@@ -84,7 +84,8 @@ func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll
 	}
 }
 
-func (s *server) StartPolling() error {
+// StartPolling initiates polling and processing mutations every pollPeriod.
+func (s *Server) StartPolling() error {
 	t := time.NewTicker(s.pollPeriod)
 	for now := range t.C {
 		glog.Infof("Polling: %v", now)
@@ -98,24 +99,24 @@ func (s *server) StartPolling() error {
 
 // GetSignedMapRoot returns the latest reconstructed using the Mutations API and
 // validated signed map root.
-func (s *server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
+func (s *Server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
 	return &ktpb.GetMonitoringResponse{
 		Smr: s.lastSMR(),
 	}, nil
 }
 
 // GetSignedMapRootStream is a streaming API similar to GetSignedMapRoot.
-func (s *server) GetSignedMapRootStream(in *ktpb.GetMonitoringRequest, stream mspb.MonitorService_GetSignedMapRootStreamServer) error {
+func (s *Server) GetSignedMapRootStream(in *ktpb.GetMonitoringRequest, stream mspb.MonitorService_GetSignedMapRootStreamServer) error {
 	// TODO(ismail): implement stream API
 	return grpc.Errorf(codes.Unimplemented, "GetSignedMapRootStream is unimplemented")
 }
 
-func (s *server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
+func (s *Server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
 	// TODO(ismail): implement by revision API
 	return nil, grpc.Errorf(codes.Unimplemented, "GetSignedMapRoot is unimplemented")
 }
 
-func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]*ktpb.Mutation, error) {
+func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]*ktpb.Mutation, error) {
 	req := &ktpb.GetMutationsRequest{PageSize: pageSize, Epoch: s.nextRevToQuery()}
 	resp, err := s.client.GetMutations(ctx, req, opts...)
 	if err != nil {
@@ -134,7 +135,10 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 
 	mutations := make([]*ktpb.Mutation, pageSize*2)
 	mutations = append(mutations, resp.GetMutations()...)
-	s.pageMutations(ctx, resp, mutations, opts...)
+	if err := s.pageMutations(ctx, resp, mutations, opts...); err != nil {
+		glog.Errorf("s.pageMutations(_): %v", err)
+		return nil, err
+	}
 
 	// update seen SMRs:
 	s.seenSMRs = append(s.seenSMRs, resp.GetSmr())
@@ -160,7 +164,7 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	return mutations, nil
 }
 
-func (s *server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
+func (s *Server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
 	// TODO(ismail):
 	// For each received mutation in epoch e:
 	// Verify that the provided leaf’s inclusion proof goes to epoch e -1.
@@ -184,7 +188,7 @@ func (s *server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error
 // more then maximum pageSize mutations in between epochs.
 // It will modify the passed GetMutationsResponse resp and the passed list of
 // mutations ms.
-func (s *server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsResponse,
+func (s *Server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsResponse,
 	ms []*ktpb.Mutation, opts ...grpc.CallOption) error {
 	// Query all mutations in the current epoch
 	for resp.GetNextPageToken() != "" {
@@ -198,21 +202,21 @@ func (s *server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsRespo
 	return nil
 }
 
-func (s *server) lastSeenSMR() *trillian.SignedMapRoot {
+func (s *Server) lastSeenSMR() *trillian.SignedMapRoot {
 	if len(s.seenSMRs) > 0 {
 		return s.seenSMRs[len(s.seenSMRs)-1]
 	}
 	return nil
 }
 
-func (s *server) lastSMR() *trillian.SignedMapRoot {
+func (s *Server) lastSMR() *trillian.SignedMapRoot {
 	if len(s.reconstructedSMRs) > 0 {
 		return s.reconstructedSMRs[len(s.reconstructedSMRs)-1]
 	}
 	return nil
 }
 
-func (s *server) nextRevToQuery() int64 {
+func (s *Server) nextRevToQuery() int64 {
 	smr := s.lastSeenSMR()
 	if smr == nil {
 		return 1
