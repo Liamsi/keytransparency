@@ -57,7 +57,6 @@ var (
 	ErrInvalidSignature = errors.New("Recreated root does not match")
 )
 
-
 // Server holds internal state for the monitor server.
 type server struct {
 	client     mupb.MutationServiceClient
@@ -154,14 +153,14 @@ func (s *server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		glog.Errorf("Unexpected error: %v", err)
 	}
 
-		// TODO(ismail): sign and update reconstructedSMRs
+	// TODO(ismail): sign and update reconstructedSMRs
 	// here we just add the kt-server signed SMR:
 	s.reconstructedSMRs = append(s.reconstructedSMRs, resp.GetSmr())
 
 	return mutations, nil
 }
 
-func (s* server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
+func (s *server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
 	// TODO(ismail):
 	// For each received mutation in epoch e:
 	// Verify that the provided leaf’s inclusion proof goes to epoch e -1.

@@ -26,20 +26,20 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/keytransparency/impl/monitor"
+	"github.com/google/trillian/crypto"
+	"github.com/google/trillian/crypto/keys"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-	"github.com/google/trillian/crypto/keys"
-	"github.com/google/trillian/crypto"
 )
 
 var (
-	addr      = flag.String("addr", ":8099", "The ip:port combination to listen on")
-	keyFile   = flag.String("key", "genfiles/server.key", "TLS private key file")
-	certFile  = flag.String("cert", "genfiles/server.pem", "TLS cert file")
+	addr     = flag.String("addr", ":8099", "The ip:port combination to listen on")
+	keyFile  = flag.String("key", "genfiles/server.key", "TLS private key file")
+	certFile = flag.String("cert", "genfiles/server.pem", "TLS cert file")
 
 	signingKey         = flag.String("sign-key", "genfiles/p256-key.pem", "Path to private key PEM for SMH signing")
 	signingKeyPassword = flag.String("password", "towel", "Password of the private key PEM file for SMH signing")
