@@ -144,7 +144,7 @@ services:
       - --poll-period=5s
       - --key=genfiles/server.key
       - --cert=genfiles/server.crt
-      - --sign-key=genfiles/p256-key.pem
+      - --sign-key=/kt/p256-monitor_sign-key.pem
       - --password=towel
       - --map-id=$MAP_ID
       - --alsologtostderr
