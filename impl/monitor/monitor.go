@@ -37,6 +37,7 @@ import (
 	mspb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
 	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
 
+	"fmt"
 	"github.com/google/keytransparency/core/tree/sparse"
 )
 
@@ -62,13 +63,9 @@ type Server struct {
 	client     mupb.MutationServiceClient
 	pollPeriod time.Duration
 
-	tree   *tv.Verifier
-	signer crypto.Signer
-	// TODO(ismail): only store the 'result' of each GetMutations request (as it
-	// contains all necessary date to make sure we don't process SMRs multiple
-	// times)
-	seenSMRs          []*trillian.SignedMapRoot
-	reconstructedSMRs []*trillian.SignedMapRoot
+	tree           *tv.Verifier
+	signer         crypto.Signer
+	proccessedSMRs []*ktpb.GetMonitoringResponse
 }
 
 // New creates a new instance of the monitor server.
@@ -77,10 +74,9 @@ func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll
 		client:     cli,
 		pollPeriod: poll,
 		// TODO TestMapHasher (maphasher.Default) does not implement sparse.TreeHasher:
-		tree:              tv.New(mapID, sparse.CONIKSHasher),
-		signer:            signer,
-		seenSMRs:          make([]*trillian.SignedMapRoot, 256),
-		reconstructedSMRs: make([]*trillian.SignedMapRoot, 256),
+		tree:           tv.New(mapID, sparse.CONIKSHasher),
+		signer:         signer,
+		proccessedSMRs: make([]*ktpb.GetMonitoringResponse, 256),
 	}
 }
 
@@ -106,9 +102,10 @@ func (s *Server) StartPolling() error {
 // from the previous to the current epoch it won't sign the map root and
 // additional data will be provided to reproduce the failure.
 func (s *Server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
-	return &ktpb.GetMonitoringResponse{
-		Smr: s.lastSMR(),
-	}, nil
+	if len(s.proccessedSMRs) > 0 {
+		return s.proccessedSMRs[len(s.proccessedSMRs)-1], nil
+	}
+	return nil, errors.New("did not process any mutations yet")
 }
 
 // GetSignedMapRootStream is a streaming API similar to GetSignedMapRoot.
@@ -136,8 +133,7 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		return nil, err
 	}
 
-	// TODO(ismail): remember when we've actually requested and seen this SMR!
-	// publish delta (seen - actual)
+	seen := time.Now().UnixNano()
 	if got, want := resp.GetSmr(), s.lastSeenSMR(); bytes.Equal(got.GetRootHash(), want.GetRootHash()) &&
 		got.GetMapRevision() == want.GetMapRevision() {
 		// We already processed this SMR. Do not update seen SMRs. Do not scroll
@@ -154,7 +150,8 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	}
 
 	// update seen SMRs:
-	s.seenSMRs = append(s.seenSMRs, resp.GetSmr())
+	// TODO: this should be
+
 	rh := resp.GetSmr().GetRootHash()
 	switch err := s.verifyMutations(mutations, rh); err {
 	// TODO(ismail): return proper data for failure cases:
@@ -170,9 +167,25 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		glog.Errorf("Unexpected error: %v", err)
 	}
 
-	// TODO(ismail): sign and update reconstructedSMRs
-	// here we just add the kt-server signed SMR:
-	s.reconstructedSMRs = append(s.reconstructedSMRs, resp.GetSmr())
+	// TODO(ismail): Sign reconstructed Hash instead of response hash:
+	sig, err := s.signer.SignObject(resp.GetSmr().GetRootHash())
+	if err != nil {
+		return nil, fmt.Errorf("s.signer.SignObject(_): %v", err)
+	}
+	// Update seen/processed signed map roots:
+	s.proccessedSMRs = append(s.proccessedSMRs,
+		&ktpb.GetMonitoringResponse{
+			Smr: &trillian.SignedMapRoot{
+				Signature:      sig,
+				TimestampNanos: resp.GetSmr().GetTimestampNanos(),
+				RootHash:       resp.GetSmr().GetRootHash(),
+				Metadata:       resp.GetSmr().GetMetadata(),
+				MapId:          resp.GetSmr().GetMapId(),
+				MapRevision:    resp.GetSmr().GetMapRevision(),
+			},
+			IsValid:            true,
+			SeenTimestampNanos: seen,
+		})
 
 	return mutations, nil
 }
@@ -216,15 +229,8 @@ func (s *Server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsRespo
 }
 
 func (s *Server) lastSeenSMR() *trillian.SignedMapRoot {
-	if len(s.seenSMRs) > 0 {
-		return s.seenSMRs[len(s.seenSMRs)-1]
-	}
-	return nil
-}
-
-func (s *Server) lastSMR() *trillian.SignedMapRoot {
-	if len(s.reconstructedSMRs) > 0 {
-		return s.reconstructedSMRs[len(s.reconstructedSMRs)-1]
+	if len(s.proccessedSMRs) > 0 {
+		return s.proccessedSMRs[len(s.proccessedSMRs)-1].GetSmr()
 	}
 	return nil
 }

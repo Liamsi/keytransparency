@@ -287,6 +287,11 @@ message GetMonitoringResponse {
   // smr will be empty. The epochs are encoded into the smr map_revision.
   trillian.SignedMapRoot smr = 1;
 
+  // seen_timestamp_nanos contains the time in nanoseconds where this particular
+  // signed map root was retrieved and processed. The actual timestamp of the
+  // smr returned by the server is contained in above smr field.
+  int64 seen_timestamp_nanos = 2;
+
   //
   // The following fields provide more information about each failure in this
   // response, if any.
@@ -294,15 +299,15 @@ message GetMonitoringResponse {
 
   // isValid signals if all verification steps for the requested epoch passed
   // or not.
-  bool isValid = 2;
+  bool isValid = 3;
   // invalidRootSigProof contains the signed map root received by the
   // key-transparency server, if and only if the key-server's signature was
   // invalid.
-  trillian.SignedMapRoot invalidRootSigProof = 3;
+  trillian.SignedMapRoot invalidRootSigProof = 4;
   // invalidMutation contains data to reproduce that there was an invalid
   // mutation from epoch e to epoch e+1
-  InvalidMutation invalidMutation = 4;
+  InvalidMutation invalidMutation = 5;
   // NotMatchingMapRoot contains all data to reproduce that the set of mutations
   // does not produce observed new map root.
-  NotMatchingMapRootProof notMatchingMapRoot = 5;
+  NotMatchingMapRootProof notMatchingMapRoot = 6;
 }
