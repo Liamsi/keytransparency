@@ -97,8 +97,14 @@ func (s *Server) StartPolling() error {
 	return nil
 }
 
-// GetSignedMapRoot returns the latest reconstructed using the Mutations API and
-// validated signed map root.
+// GetSignedMapRoot returns the latest valid signed map root the monitor
+// observed. Additionally, the response contains additional data necessary to
+// reproduce errors on failure.
+//
+// Returns the signed map root for the latest epoch the monitor observed. If
+// the monitor could not reconstruct the map root given the set of mutations
+// from the previous to the current epoch it won't sign the map root and
+// additional data will be provided to reproduce the failure.
 func (s *Server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
 	return &ktpb.GetMonitoringResponse{
 		Smr: s.lastSMR(),
@@ -111,6 +117,13 @@ func (s *Server) GetSignedMapRootStream(in *ktpb.GetMonitoringRequest, stream ms
 	return grpc.Errorf(codes.Unimplemented, "GetSignedMapRootStream is unimplemented")
 }
 
+// GetSignedMapRootByRevision works similar to GetSignedMapRoot but returns
+// the monitor's result for a specific map revision.
+//
+// Returns the signed map root for the specified epoch the monitor observed.
+// If the monitor could not reconstruct the map root given the set of
+// mutations from the previous to the current epoch it won't sign the map root
+// and additional data will be provided to reproduce the failure.
 func (s *Server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMonitoringRequest) (*ktpb.GetMonitoringResponse, error) {
 	// TODO(ismail): implement by revision API
 	return nil, grpc.Errorf(codes.Unimplemented, "GetSignedMapRoot is unimplemented")
