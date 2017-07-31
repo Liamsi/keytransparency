@@ -21,6 +21,7 @@ package monitor
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -37,7 +38,6 @@ import (
 	mspb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
 	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
 
-	"fmt"
 	"github.com/google/keytransparency/core/tree/sparse"
 )
 
@@ -56,6 +56,9 @@ var (
 	// ErrInvalidSignature occurs when the signature on the observed map root is
 	// invalid.
 	ErrInvalidSignature = errors.New("Recreated root does not match")
+	// ErrNothingProcessed occurs when the monitor did not process any mutations /
+	// smrs yet.
+	ErrNothingProcessed = errors.New("did not process any mutations yet")
 )
 
 // Server holds internal state for the monitor server.
@@ -105,7 +108,7 @@ func (s *Server) GetSignedMapRoot(ctx context.Context, in *ktpb.GetMonitoringReq
 	if len(s.proccessedSMRs) > 0 {
 		return s.proccessedSMRs[len(s.proccessedSMRs)-1], nil
 	}
-	return nil, errors.New("did not process any mutations yet")
+	return nil, ErrNothingProcessed
 }
 
 // GetSignedMapRootStream is a streaming API similar to GetSignedMapRoot.

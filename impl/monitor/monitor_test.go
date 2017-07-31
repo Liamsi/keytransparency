@@ -28,7 +28,7 @@ import (
 func TestGetSignedMapRoot(t *testing.T) {
 	srv := Server{}
 	_, err := srv.GetSignedMapRoot(context.TODO(), nil)
-	if got, want := grpc.Code(err), codes.OK; got != want {
+	if got, want := err, ErrNothingProcessed; got != want {
 		t.Errorf("GetSignedMapRoot(_, _): %v, want %v", got, want)
 	}
 }
