@@ -21,9 +21,6 @@ import (
 	"strings"
 	"time"
 
-	mopb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
-	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
-
 	"github.com/golang/glog"
 	"github.com/google/keytransparency/impl/monitor"
 	"github.com/google/trillian/crypto"
@@ -34,12 +31,15 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
+
+	mopb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
+	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
 )
 
 var (
 	addr     = flag.String("addr", ":8099", "The ip:port combination to listen on")
-	keyFile  = flag.String("key", "genfiles/server.key", "TLS private key file")
-	certFile = flag.String("cert", "genfiles/server.pem", "TLS cert file")
+	keyFile  = flag.String("tls-key", "genfiles/server.key", "TLS private key file")
+	certFile = flag.String("tls-cert", "genfiles/server.pem", "TLS cert file")
 
 	signingKey         = flag.String("sign-key", "genfiles/p256-key.pem", "Path to private key PEM for SMH signing")
 	signingKeyPassword = flag.String("password", "towel", "Password of the private key PEM file for SMH signing")

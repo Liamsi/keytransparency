@@ -130,8 +130,10 @@ func (s *Server) GetSignedMapRootByRevision(ctx context.Context, in *ktpb.GetMon
 }
 
 func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]*ktpb.Mutation, error) {
-	req := &ktpb.GetMutationsRequest{PageSize: pageSize, Epoch: s.nextRevToQuery()}
-	resp, err := s.client.GetMutations(ctx, req, opts...)
+	resp, err := s.client.GetMutations(ctx, &ktpb.GetMutationsRequest{
+		PageSize: pageSize,
+		Epoch:    s.nextRevToQuery(),
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -145,15 +147,11 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		return nil, nil
 	}
 
-	mutations := make([]*ktpb.Mutation, pageSize*2)
-	mutations = append(mutations, resp.GetMutations()...)
-	if err := s.pageMutations(ctx, resp, mutations, opts...); err != nil {
+	mutations, err := s.pageMutations(ctx, resp, opts...)
+	if err != nil {
 		glog.Errorf("s.pageMutations(_): %v", err)
 		return nil, err
 	}
-
-	// update seen SMRs:
-	// TODO: this should be
 
 	rh := resp.GetSmr().GetRootHash()
 	switch err := s.verifyMutations(mutations, rh); err {
@@ -175,17 +173,13 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	if err != nil {
 		return nil, fmt.Errorf("s.signer.SignObject(_): %v", err)
 	}
+	smr := resp.GetSmr()
+	smr.Signature = sig
+
 	// Update seen/processed signed map roots:
 	s.proccessedSMRs = append(s.proccessedSMRs,
 		&ktpb.GetMonitoringResponse{
-			Smr: &trillian.SignedMapRoot{
-				Signature:      sig,
-				TimestampNanos: resp.GetSmr().GetTimestampNanos(),
-				RootHash:       resp.GetSmr().GetRootHash(),
-				Metadata:       resp.GetSmr().GetMetadata(),
-				MapId:          resp.GetSmr().GetMapId(),
-				MapRevision:    resp.GetSmr().GetMapRevision(),
-			},
+			Smr:                smr,
 			IsValid:            true,
 			SeenTimestampNanos: seen,
 		})
@@ -193,42 +187,24 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	return mutations, nil
 }
 
-func (s *Server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
-	// TODO(ismail):
-	// For each received mutation in epoch e:
-	// Verify that the provided leaf’s inclusion proof goes to epoch e -1.
-	// Verify the mutation’s validity against the previous leaf.
-	// Compute the new leaf and store the intermediate hashes locally.
-	// Compute the new root using local intermediate hashes from epoch e.
-	for _, m := range ms {
-		idx := m.GetProof().GetLeaf().GetIndex()
-		nbrs := m.GetProof().GetInclusion()
-		if err := s.tree.VerifyProof(nbrs, idx, m.GetProof().GetLeaf().GetLeafValue(),
-			sparse.FromBytes(expectedRoot)); err != nil {
-			glog.Errorf("VerifyProof(): %v", err)
-			// TODO return nil, err
-		}
-	}
-
-	return nil
-}
-
 // pageMutations iterates/pages through all mutations in the case there were
 // more then maximum pageSize mutations in between epochs.
-// It will modify the passed GetMutationsResponse resp and the passed list of
-// mutations ms.
+// It will modify the passed GetMutationsResponse resp.
 func (s *Server) pageMutations(ctx context.Context, resp *ktpb.GetMutationsResponse,
-	ms []*ktpb.Mutation, opts ...grpc.CallOption) error {
+	opts ...grpc.CallOption) ([]*ktpb.Mutation, error) {
+	ms := make([]*ktpb.Mutation, pageSize*2)
+	ms = append(ms, resp.GetMutations()...)
+
 	// Query all mutations in the current epoch
 	for resp.GetNextPageToken() != "" {
 		req := &ktpb.GetMutationsRequest{PageSize: pageSize}
 		resp, err := s.client.GetMutations(ctx, req, opts...)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		ms = append(ms, resp.GetMutations()...)
 	}
-	return nil
+	return ms, nil
 }
 
 func (s *Server) lastSeenSMR() *trillian.SignedMapRoot {
