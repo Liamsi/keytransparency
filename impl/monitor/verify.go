@@ -19,30 +19,45 @@
 package monitor
 
 import (
+	"errors"
+
 	"github.com/golang/glog"
 
-	// TODO:  use the trillian verification logic instead:
-	"github.com/google/keytransparency/core/tree/sparse"
+	tcrypto "github.com/google/trillian/crypto"
 
 	ktpb "github.com/google/keytransparency/core/proto/keytransparency_v1_types"
 )
 
-func (s *Server) verifyMutations(ms []*ktpb.Mutation, expectedRoot []byte) error {
-	// TODO(ismail):
-	// For each received mutation in epoch e:
-	// Verify that the provided leaf’s inclusion proof goes to epoch e -1.
-	// Verify the mutation’s validity against the previous leaf.
-	// Compute the new leaf and store the intermediate hashes locally.
-	// Compute the new root using local intermediate hashes from epoch e.
-	for _, m := range ms {
-		idx := m.GetProof().GetLeaf().GetIndex()
-		nbrs := m.GetProof().GetInclusion()
-		if err := s.tree.VerifyProof(nbrs, idx, m.GetProof().GetLeaf().GetLeafValue(),
-			sparse.FromBytes(expectedRoot)); err != nil {
-			glog.Errorf("VerifyProof(): %v", err)
-			// TODO return nil, err
-		}
+var (
+	// ErrInvalidMutation occurs when verification failed because of an invalid
+	// mutation.
+	ErrInvalidMutation = errors.New("invalid mutation")
+	// ErrNotMatchingRoot occurs when the reconstructed root differs from the one
+	// we received from the server.
+	ErrNotMatchingRoot = errors.New("recreated root does not match")
+	// ErrInvalidSignature occurs when the signature on the observed map root is
+	// invalid.
+	ErrInvalidSignature = errors.New("invalid signature on GetMutationsResponse")
+)
+
+// verifyResponse verifies a response received by the GetMutations API.
+// Additionally to the response it takes a complete list of mutations. The list
+// of received mutations may differ from those included in the initial response
+// because of the max. page size.
+func (s *Server) verifyResponse(resp *ktpb.GetMutationsResponse, allMuts []*ktpb.Mutation) error {
+	// verify signature on map root:
+	if err := tcrypto.VerifyObject(s.mapPubKey, resp.GetSmr(), resp.GetSmr().GetSignature()); err != nil {
+		glog.Errorf("couldn't verify signature: %v", err)
+		return ErrInvalidSignature
 	}
 
-	return nil
+	// verify that the provided leaf’s inclusion proof goes to epoch e -1.
+
+	// verify the mutation’s validity against the previous leaf.
+
+	// compute the new leaf and store the intermediate hashes locally.
+	// compute the new root using local intermediate hashes from epoch e.
+	// verify rootHash
+
+	return errors.New("TODO: implement verification logic")
 }

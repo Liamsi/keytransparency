@@ -47,7 +47,9 @@ var (
 	pollPeriod = flag.Duration("poll-period", time.Second*5, "Maximum time between polling the key-server. Ideally, this is equal to the min-period of paramerter of the keyserver.")
 	ktURL      = flag.String("kt-url", "localhost:8080", "URL of key-server.")
 	ktPEM      = flag.String("kt-key", "genfiles/server.crt", "Path to kt-server's public key")
-	// TODO(ismail): remove mapID
+
+	mapKey = flag.String("map-key", "../trillian/testdata/map-rpc-server.pubkey.pem", "Path to public key PEM used to verify the SMH signature")
+	// TODO(ismail): remove mapID if really not necessary:
 	mapID = flag.Int64("map-id", 0, "Trillian map ID")
 
 	// TODO(ismail): expose prometheus metrics: a variable that tracks valid/invalid MHs
@@ -111,7 +113,7 @@ func main() {
 		glog.Fatalf("Could not create signer from %v: %v", *signingKey, err)
 	}
 
-	srv := monitor.New(mcc, *crypto.NewSHA256Signer(key), *mapID, *pollPeriod)
+	srv := monitor.New(mcc, *crypto.NewSHA256Signer(key), *mapKey, *pollPeriod)
 
 	mopb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)

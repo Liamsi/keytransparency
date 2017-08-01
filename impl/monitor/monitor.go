@@ -20,6 +20,7 @@ package monitor
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 	"time"
@@ -30,15 +31,13 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/google/trillian"
-	"github.com/google/trillian/crypto"
+
+	tcrypto "github.com/google/trillian/crypto"
 
 	ktpb "github.com/google/keytransparency/core/proto/keytransparency_v1_types"
-	tv "github.com/google/keytransparency/core/tree/sparse/verifier"
 
 	mspb "github.com/google/keytransparency/impl/proto/monitor_v1_service"
 	mupb "github.com/google/keytransparency/impl/proto/mutation_v1_service"
-
-	"github.com/google/keytransparency/core/tree/sparse"
 )
 
 // Each page contains pageSize profiles. Each profile contains multiple
@@ -47,15 +46,6 @@ import (
 const pageSize = 16
 
 var (
-	// ErrInvalidMutation occurs when verification failed because of an invalid
-	// mutation.
-	ErrInvalidMutation = errors.New("Invalid mutation")
-	// ErrNotMatchingRoot occurs when the reconstructed root differs from the one
-	// we received from the server.
-	ErrNotMatchingRoot = errors.New("Recreated root does not match")
-	// ErrInvalidSignature occurs when the signature on the observed map root is
-	// invalid.
-	ErrInvalidSignature = errors.New("Recreated root does not match")
 	// ErrNothingProcessed occurs when the monitor did not process any mutations /
 	// smrs yet.
 	ErrNothingProcessed = errors.New("did not process any mutations yet")
@@ -66,18 +56,19 @@ type Server struct {
 	client     mupb.MutationServiceClient
 	pollPeriod time.Duration
 
-	tree           *tv.Verifier
-	signer         crypto.Signer
+	mapPubKey crypto.PublicKey
+
+	signer         tcrypto.Signer
 	proccessedSMRs []*ktpb.GetMonitoringResponse
 }
 
 // New creates a new instance of the monitor server.
-func New(cli mupb.MutationServiceClient, signer crypto.Signer, mapID int64, poll time.Duration) *Server {
+func New(cli mupb.MutationServiceClient,
+	signer tcrypto.Signer, mapPubKey crypto.PublicKey, poll time.Duration) *Server {
 	return &Server{
-		client:     cli,
-		pollPeriod: poll,
-		// TODO TestMapHasher (maphasher.Default) does not implement sparse.TreeHasher:
-		tree:           tv.New(mapID, sparse.CONIKSHasher),
+		client:         cli,
+		pollPeriod:     poll,
+		mapPubKey:      mapPubKey,
 		signer:         signer,
 		proccessedSMRs: make([]*ktpb.GetMonitoringResponse, 256),
 	}
@@ -152,37 +143,41 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		glog.Errorf("s.pageMutations(_): %v", err)
 		return nil, err
 	}
-
-	rh := resp.GetSmr().GetRootHash()
-	switch err := s.verifyMutations(mutations, rh); err {
+	respSmr := resp.GetSmr()
+	var monitorResp *ktpb.GetMonitoringResponse
+	switch err := s.verifyResponse(resp, mutations); err {
 	// TODO(ismail): return proper data for failure cases:
 	case ErrInvalidMutation:
 		glog.Errorf("TODO: handle this ErrInvalidMutation properly")
 	case ErrInvalidSignature:
-		glog.Errorf("TODO: handle this ErrInvalidSignature properly (return SMR)")
+		glog.Infof("Signature did not verify: %v", err)
+		monitorResp = &ktpb.GetMonitoringResponse{
+			Smr:                respSmr,
+			IsValid:            false,
+			SeenTimestampNanos: seen,
+		}
 	case ErrNotMatchingRoot:
 		glog.Errorf("TODO: handle this ErrNotMatchingRoot properly")
 	case nil:
-		glog.Info("TODO: Successfully verified.")
-	default:
-		glog.Errorf("Unexpected error: %v", err)
-	}
-
-	// TODO(ismail): Sign reconstructed Hash instead of response hash:
-	sig, err := s.signer.SignObject(resp.GetSmr().GetRootHash())
-	if err != nil {
-		return nil, fmt.Errorf("s.signer.SignObject(_): %v", err)
-	}
-	smr := resp.GetSmr()
-	smr.Signature = sig
-
-	// Update seen/processed signed map roots:
-	s.proccessedSMRs = append(s.proccessedSMRs,
-		&ktpb.GetMonitoringResponse{
-			Smr:                smr,
+		// Sign map root with monitor key:
+		sig, err := s.signer.SignObject(resp.GetSmr().GetRootHash())
+		if err != nil {
+			return nil, fmt.Errorf("s.signer.SignObject(_): %v", err)
+		}
+		// update signature on smr:
+		respSmr.Signature = sig
+		monitorResp = &ktpb.GetMonitoringResponse{
+			Smr:                respSmr,
 			IsValid:            true,
 			SeenTimestampNanos: seen,
-		})
+		}
+	default:
+		glog.Errorf("Unexpected error: %v", err)
+		return nil, err
+	}
+
+	// Update seen/processed signed map roots:
+	s.proccessedSMRs = append(s.proccessedSMRs, monitorResp)
 
 	return mutations, nil
 }
