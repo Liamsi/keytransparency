@@ -73,7 +73,6 @@ func New(cli mupb.MutationServiceClient,
 		pollPeriod: poll,
 		logPubKey:  logPubKey,
 		mapPubKey:  mapPubKey,
-
 		signer:         signer,
 		proccessedSMRs: make([]*ktpb.GetMonitoringResponse, 256),
 	}

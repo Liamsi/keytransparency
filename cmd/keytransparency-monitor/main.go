@@ -50,8 +50,6 @@ var (
 
 	mapKey = flag.String("map-key", "genfiles/map-rpc-server.pubkey.pem", "Path to public key PEM used to verify the SMH signature")
 	logKey = flag.String("log-key", "genfiles/log-rpc-server.pubkey.pem", "Path to public key PEM used to verify the STH signature")
-	// TODO(ismail): remove mapID if really not necessary:
-	mapID = flag.Int64("map-id", 0, "Trillian map ID")
 
 	// TODO(ismail): expose prometheus metrics: a variable that tracks valid/invalid MHs
 	metricsAddr = flag.String("metrics-addr", ":8081", "The ip:port to publish metrics on")

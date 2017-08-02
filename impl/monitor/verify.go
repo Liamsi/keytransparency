@@ -23,6 +23,8 @@ import (
 
 	"github.com/golang/glog"
 
+	"github.com/google/trillian/merkle"
+
 	tcrypto "github.com/google/trillian/crypto"
 
 	ktpb "github.com/google/keytransparency/core/proto/keytransparency_v1_types"
@@ -60,7 +62,11 @@ func (s *Server) verifyResponse(resp *ktpb.GetMutationsResponse, allMuts []*ktpb
 	}
 
 	// verify that the provided leaf’s inclusion proof goes to epoch e-1.
-
+	if err := merkle.VerifyMapInclusionProof(treeID, index,
+		leafHash, rootHash, proof, hasher); err != nil {
+		glog.Errorf("VerifyMapInclusionProof(%x): %v", index, err)
+		return ErrInvalidMutation
+	}
 
 	// verify the mutation’s validity against the previous leaf.
 
