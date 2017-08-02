@@ -57,6 +57,7 @@ type Server struct {
 	pollPeriod time.Duration
 
 	mapPubKey crypto.PublicKey
+	logPubKey crypto.PublicKey
 
 	signer         tcrypto.Signer
 	proccessedSMRs []*ktpb.GetMonitoringResponse
@@ -64,11 +65,15 @@ type Server struct {
 
 // New creates a new instance of the monitor server.
 func New(cli mupb.MutationServiceClient,
-	signer tcrypto.Signer, mapPubKey crypto.PublicKey, poll time.Duration) *Server {
+	signer tcrypto.Signer,
+	logPubKey, mapPubKey crypto.PublicKey,
+	poll time.Duration) *Server {
 	return &Server{
-		client:         cli,
-		pollPeriod:     poll,
-		mapPubKey:      mapPubKey,
+		client:     cli,
+		pollPeriod: poll,
+		logPubKey:  logPubKey,
+		mapPubKey:  mapPubKey,
+
 		signer:         signer,
 		proccessedSMRs: make([]*ktpb.GetMonitoringResponse, 256),
 	}
@@ -149,12 +154,19 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 	// TODO(ismail): return proper data for failure cases:
 	case ErrInvalidMutation:
 		glog.Errorf("TODO: handle this ErrInvalidMutation properly")
-	case ErrInvalidSignature:
-		glog.Infof("Signature did not verify: %v", err)
+	case ErrInvalidMapSignature:
+		glog.Infof("Signature on map did not verify: %v", err)
 		monitorResp = &ktpb.GetMonitoringResponse{
-			Smr:                respSmr,
 			IsValid:            false,
 			SeenTimestampNanos: seen,
+			InvalidMapSigProof: respSmr,
+		}
+	case ErrInvalidLogSignature:
+		glog.Infof("Signature on log did not verify: %v", err)
+		monitorResp = &ktpb.GetMonitoringResponse{
+			IsValid:            false,
+			SeenTimestampNanos: seen,
+			InvalidLogSigProof: resp.GetLogRoot(),
 		}
 	case ErrNotMatchingRoot:
 		glog.Errorf("TODO: handle this ErrNotMatchingRoot properly")
@@ -173,6 +185,8 @@ func (s *Server) pollMutations(ctx context.Context, opts ...grpc.CallOption) ([]
 		}
 	default:
 		glog.Errorf("Unexpected error: %v", err)
+		// TODO(ismail): Clarify: Would we still want to create a monitor response
+		// in this case?
 		return nil, err
 	}
 

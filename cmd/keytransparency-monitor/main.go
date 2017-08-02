@@ -48,7 +48,8 @@ var (
 	ktURL      = flag.String("kt-url", "localhost:8080", "URL of key-server.")
 	ktPEM      = flag.String("kt-key", "genfiles/server.crt", "Path to kt-server's public key")
 
-	mapKey = flag.String("map-key", "../trillian/testdata/map-rpc-server.pubkey.pem", "Path to public key PEM used to verify the SMH signature")
+	mapKey = flag.String("map-key", "genfiles/map-rpc-server.pubkey.pem", "Path to public key PEM used to verify the SMH signature")
+	logKey = flag.String("log-key", "genfiles/log-rpc-server.pubkey.pem", "Path to public key PEM used to verify the STH signature")
 	// TODO(ismail): remove mapID if really not necessary:
 	mapID = flag.Int64("map-id", 0, "Trillian map ID")
 
@@ -113,7 +114,7 @@ func main() {
 		glog.Fatalf("Could not create signer from %v: %v", *signingKey, err)
 	}
 
-	srv := monitor.New(mcc, *crypto.NewSHA256Signer(key), *mapKey, *pollPeriod)
+	srv := monitor.New(mcc, *crypto.NewSHA256Signer(key), *mapKey, *logKey, *pollPeriod)
 
 	mopb.RegisterMonitorServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)

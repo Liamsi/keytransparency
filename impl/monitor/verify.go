@@ -35,9 +35,12 @@ var (
 	// ErrNotMatchingRoot occurs when the reconstructed root differs from the one
 	// we received from the server.
 	ErrNotMatchingRoot = errors.New("recreated root does not match")
-	// ErrInvalidSignature occurs when the signature on the observed map root is
-	// invalid.
-	ErrInvalidSignature = errors.New("invalid signature on GetMutationsResponse")
+	// ErrInvalidMapSignature occurs when the signature on the observed map root
+	// is invalid.
+	ErrInvalidMapSignature = errors.New("invalid signature on map in GetMutationsResponse")
+	// ErrInvalidMapSignature occurs when the signature on the observed map root
+	// is invalid.
+	ErrInvalidLogSignature = errors.New("invalid signature on log in GetMutationsResponse")
 )
 
 // verifyResponse verifies a response received by the GetMutations API.
@@ -47,11 +50,17 @@ var (
 func (s *Server) verifyResponse(resp *ktpb.GetMutationsResponse, allMuts []*ktpb.Mutation) error {
 	// verify signature on map root:
 	if err := tcrypto.VerifyObject(s.mapPubKey, resp.GetSmr(), resp.GetSmr().GetSignature()); err != nil {
-		glog.Errorf("couldn't verify signature: %v", err)
-		return ErrInvalidSignature
+		glog.Errorf("couldn't verify signature on map root: %v", err)
+		return ErrInvalidMapSignature
+	}
+	// verify signature on log root:
+	if err := tcrypto.VerifyObject(s.logPubKey, resp.GetSmr(), resp.GetLogRoot().GetSignature()); err != nil {
+		glog.Errorf("couldn't verify signature on log root: %v", err)
+		return ErrInvalidLogSignature
 	}
 
-	// verify that the provided leaf’s inclusion proof goes to epoch e -1.
+	// verify that the provided leaf’s inclusion proof goes to epoch e-1.
+
 
 	// verify the mutation’s validity against the previous leaf.
 
