@@ -54,7 +54,7 @@ var (
 type Committer interface {
 	// Write saves a cryptographic commitment and associated data.
 	Write(ctx context.Context, commitment []byte, committed *tpb.Committed) error
-	// Read looks up a cryptograpic commitment and returns associated data.
+	// Read looks up a cryptographic commitment and returns associated data.
 	Read(ctx context.Context, commitment []byte) (*tpb.Committed, error)
 }
 

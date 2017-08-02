@@ -23,7 +23,8 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/google/trillian/merkle"
+	//"github.com/google/trillian/merkle"
+	//"github.com/google/trillian"
 
 	tcrypto "github.com/google/trillian/crypto"
 
@@ -60,13 +61,20 @@ func (s *Server) verifyResponse(resp *ktpb.GetMutationsResponse, allMuts []*ktpb
 		glog.Errorf("couldn't verify signature on log root: %v", err)
 		return ErrInvalidLogSignature
 	}
+	// TODO verify log-root:
+	// VerifyRoot(trusted, newRoot *trillian.SignedLogRoot, consistency [][]byte) error
+	// mapID := resp.GetSmr().GetMapId()
 
+	// TODO: export applyMutations in CreateEpoch / signer.go?
+	//
 	// verify that the provided leaf’s inclusion proof goes to epoch e-1.
-	if err := merkle.VerifyMapInclusionProof(treeID, index,
-		leafHash, rootHash, proof, hasher); err != nil {
-		glog.Errorf("VerifyMapInclusionProof(%x): %v", index, err)
-		return ErrInvalidMutation
-	}
+	//
+	// for each mutation:
+	//if err := merkle.VerifyMapInclusionProof(mapID, index,
+	//	leafHash, rootHash, proof, hasher); err != nil {
+	//	glog.Errorf("VerifyMapInclusionProof(%x): %v", index, err)
+	//	return ErrInvalidMutation
+	//}
 
 	// verify the mutation’s validity against the previous leaf.
 
